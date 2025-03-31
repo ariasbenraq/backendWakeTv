@@ -1,0 +1,42 @@
+# Node.js
+node_modules/
+
+# Archivos de entorno
+.env
+.env.*  # si usas diferentes entornos como .env.development, .env.production
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db
+
+# Directorios temporales o de caché
+tmp/
+temp/
+.cache/
+
+# Carpetas de salida / build
+dist/
+build/
+coverage/
+
+# Archivos de procesos
+pids
+*.pid
+*.seed
+
+# Configs de IDEs
+.vscode/
+.idea/
+*.sw?
+
+# Otros
+*.local
+*.sublime-project
+*.sublime-workspace
