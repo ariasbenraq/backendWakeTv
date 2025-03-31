@@ -5,7 +5,7 @@ const cors = require("cors"); // Permite conexiones desde otros orígenes (como 
 
 // 🌐 Configuración del servidor Express
 const app = express();
-const port = 5000; // Puerto en el que correrá el backend
+const port = 8081; // Puerto en el que correrá el backend
 
 // 🧠 Middlewares para permitir CORS y parsear JSON
 app.use(cors()); // Permite que el frontend pueda comunicarse con este backend
