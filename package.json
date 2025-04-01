@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "nodemon index.js"
   },
   "keywords": [],
   "author": "",
@@ -22,5 +22,8 @@
     "url": "https://github.com/ariasbenraq/backendWakeTv/issues"
   },
   "homepage": "https://github.com/ariasbenraq/backendWakeTv#readme",
-  "description": ""
+  "description": "",
+  "devDependencies": {
+    "nodemon": "^3.1.9"
+  }
 }
