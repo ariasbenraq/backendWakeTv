@@ -1,3 +1,7 @@
+// Cargar variables de entorno según el entorno actual
+const env = process.env.NODE_ENV || 'development';
+require('dotenv').config({ path: `.env.${env}` });
+
 // 🔌 Importación de módulos necesarios
 const express = require("express"); // Framework web para crear el servidor
 const wol = require("wol"); // Librería para enviar paquetes Wake-on-LAN
@@ -5,7 +9,7 @@ const cors = require("cors"); // Permite conexiones desde otros orígenes (como 
 
 // 🌐 Configuración del servidor Express
 const app = express();
-const port = 8081; // Puerto en el que correrá el backend
+const port = process.env.PORT || 5000; // Puerto en el que correrá el backend
 
 // 🧠 Middlewares para permitir CORS y parsear JSON
 app.use(cors()); // Permite que el frontend pueda comunicarse con este backend
