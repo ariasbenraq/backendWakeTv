@@ -21,7 +21,7 @@ app.post("/power/on", (req, res) => {
             console.error("Error al enviar Wake-on-LAN:", err);
             return res.status(500).send("Error al encender el televisor");
         }
-        console.log("Wake-on-LAN enviado");
+        console.log("Encendiendo el televisor...");
         res.send("Encendiendo el televisor...");
     });
 });
