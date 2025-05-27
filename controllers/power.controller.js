@@ -110,7 +110,7 @@ exports.smartOpenDisney = async (req, res) => {
         return res.status(500).send("No se pudo encender el televisor");
       }
 
-      console.log("⚡ Encendido solicitado. Esperando 15 segundos...");
+      console.log("⚡ Encendido solicitado. Esperando 10 segundos...");
 
       setTimeout(() => {
         const lgtv2 = require("lgtv2")({
@@ -127,7 +127,7 @@ exports.smartOpenDisney = async (req, res) => {
           console.error("❌ No se pudo conectar tras el encendido:", err3);
           res.status(500).send("TV encendido, pero no se pudo conectar para abrir Disney+");
         });
-      }, 15000); // esperar a que webOS termine de cargar
+      }, 5000); // esperar a que webOS termine de cargar
     });
   }
 };
