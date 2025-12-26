@@ -1,13 +1,82 @@
 exports.togglePlayPause = (req, res) => {
   const lgtv = require("../utils/lgtv")();
+
+  const respondAndDisconnect = (status, message) => {
+    res.status(status).send(message);
+    lgtv.disconnect();
+  };
+
+  const fallbackToggle = () => {
+    lgtv.request("ssap://media.controls/togglePause", (toggleErr) => {
+      if (toggleErr) return respondAndDisconnect(500, "No se pudo alternar reproducción/pausa");
+      respondAndDisconnect(200, "Comando togglePause enviado correctamente");
+    });
+  };
+
   lgtv.on("connect", () => {
-    lgtv.request("ssap://media.controls/togglePause", (err) => {
-      if (err) return res.status(500).send("No se pudo alternar reproducción/pausa");
-      res.send("Comando togglePause enviado correctamente");
-      lgtv.disconnect();
+    lgtv.request("ssap://com.webos.service.ime/sendEnterKey", { key: "ENTER" }, () => {
+      setTimeout(() => {
+        lgtv.request("ssap://media.controls/getPlaybackState", (stateErr, stateResponse = {}) => {
+          if (stateErr || !stateResponse.state) {
+            return fallbackToggle();
+          }
+
+          const playbackState = stateResponse.state;
+          const command =
+            playbackState === "playing" ? "ssap://media.controls/pause" : "ssap://media.controls/play";
+
+          lgtv.request(command, (commandErr) => {
+            if (commandErr) return fallbackToggle();
+            respondAndDisconnect(
+              200,
+              playbackState === "playing"
+                ? "✅ Reproducción pausada correctamente"
+                : "✅ Reproducción iniciada correctamente"
+            );
+          });
+        });
+      }, 600);
     });
   });
   lgtv.on("error", () => res.status(500).send("Error al conectar con el televisor"));
+};
+
+const sendRemoteButton = (buttonName, res, successMessage) => {
+  const lgtv = require("../utils/lgtv")();
+
+  const respondAndDisconnect = (status, message) => {
+    res.status(status).send(message);
+    lgtv.disconnect();
+  };
+
+  lgtv.on("connect", () => {
+    lgtv.getSocket(
+      "ssap://com.webos.service.networkinput/getPointerInputSocket",
+      (socketErr, socket) => {
+        if (socketErr || !socket) {
+          return respondAndDisconnect(500, "No se pudo abrir el control remoto");
+        }
+
+        const payload = JSON.stringify({ type: "button", name: buttonName });
+        socket.send(payload);
+        respondAndDisconnect(200, successMessage);
+      }
+    );
+  });
+
+  lgtv.on("error", () => res.status(500).send("Error al conectar con el televisor"));
+};
+
+exports.remotePlayPause = (req, res) => {
+  sendRemoteButton("PLAY_PAUSE", res, "✅ Comando remoto play/pause enviado");
+};
+
+exports.remotePlay = (req, res) => {
+  sendRemoteButton("PLAY", res, "✅ Comando remoto play enviado");
+};
+
+exports.remotePause = (req, res) => {
+  sendRemoteButton("PAUSE", res, "✅ Comando remoto pause enviado");
 };
 
 
@@ -75,4 +144,3 @@ exports.openDisneyPlus = (req, res) => {
     res.status(500).send("No se pudo conectar al televisor");
   });
 };
-
