@@ -1,0 +1,21 @@
+services:
+  backend:
+    build:
+      context: .
+    container_name: wakatv-backend
+    environment:
+      NODE_ENV: production
+      PORT: "8081"
+      TZ: America/Lima
+      # Agrega aquí tus variables (si las hubiera), ej:
+      # WOL_BROADCAST_IP: "192.168.18.255"
+      # WSS_ALLOWED_ORIGIN: "http://localhost:5173"
+    ports:
+      - "8081:8081"
+    restart: unless-stopped
+    # Si necesitas pasar un .env:
+    # env_file:
+    #   - .env
+    # Si tu app escribe archivos (logs/tmp), podrías montar un volumen persistente:
+    # volumes:
+    #   - ./data:/app/data
