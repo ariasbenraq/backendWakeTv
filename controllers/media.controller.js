@@ -10,6 +10,38 @@ exports.togglePlayPause = (req, res) => {
   lgtv.on("error", () => res.status(500).send("Error al conectar con el televisor"));
 };
 
+exports.playPauseByState = (req, res) => {
+  const lgtv = require("../utils/lgtv")();
+  lgtv.on("connect", () => {
+    lgtv.request("ssap://media.controls/getPlayState", (err, response) => {
+      if (err) {
+        return res.status(500).send("No se pudo obtener el estado de reproducción");
+      }
+
+      const playState = response?.playState;
+      let command;
+      let successMessage;
+
+      if (playState === "playing") {
+        command = "ssap://media.controls/pause";
+        successMessage = "Comando pause enviado correctamente";
+      } else if (playState === "paused") {
+        command = "ssap://media.controls/play";
+        successMessage = "Comando play enviado correctamente";
+      } else {
+        return res.status(400).send("Estado de reproducción no soportado");
+      }
+
+      lgtv.request(command, (err2) => {
+        if (err2) return res.status(500).send("No se pudo enviar el comando");
+        res.send(successMessage);
+        lgtv.disconnect();
+      });
+    });
+  });
+  lgtv.on("error", () => res.status(500).send("Error al conectar con el televisor"));
+};
+
 
 exports.playOrStart = (req, res) => {
   const lgtv = require("../utils/lgtv")();
@@ -75,4 +107,3 @@ exports.openDisneyPlus = (req, res) => {
     res.status(500).send("No se pudo conectar al televisor");
   });
 };
-
