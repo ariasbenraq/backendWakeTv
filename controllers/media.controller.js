@@ -1,10 +1,37 @@
 exports.togglePlayPause = (req, res) => {
   const lgtv = require("../utils/lgtv")();
   lgtv.on("connect", () => {
-    lgtv.request("ssap://media.controls/togglePause", (err) => {
-      if (err) return res.status(500).send("No se pudo alternar reproducción/pausa");
-      res.send("Comando togglePause enviado correctamente");
-      lgtv.disconnect();
+    lgtv.request("ssap://media.controls/getPlaybackState", (stateErr, stateResponse = {}) => {
+      if (stateErr) {
+        lgtv.request("ssap://media.controls/togglePause", (toggleErr) => {
+          if (toggleErr) return res.status(500).send("No se pudo alternar reproducción/pausa");
+          res.send("Comando togglePause enviado correctamente");
+          lgtv.disconnect();
+        });
+        return;
+      }
+
+      const playbackState = stateResponse.state;
+      const command =
+        playbackState === "playing" ? "ssap://media.controls/pause" : "ssap://media.controls/play";
+
+      lgtv.request(command, (commandErr) => {
+        if (commandErr) {
+          lgtv.request("ssap://media.controls/togglePause", (toggleErr) => {
+            if (toggleErr) return res.status(500).send("No se pudo alternar reproducción/pausa");
+            res.send("Comando togglePause enviado correctamente");
+            lgtv.disconnect();
+          });
+          return;
+        }
+
+        res.send(
+          playbackState === "playing"
+            ? "✅ Reproducción pausada correctamente"
+            : "✅ Reproducción iniciada correctamente"
+        );
+        lgtv.disconnect();
+      });
     });
   });
   lgtv.on("error", () => res.status(500).send("Error al conectar con el televisor"));
@@ -75,4 +102,3 @@ exports.openDisneyPlus = (req, res) => {
     res.status(500).send("No se pudo conectar al televisor");
   });
 };
-
