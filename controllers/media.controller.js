@@ -41,6 +41,44 @@ exports.togglePlayPause = (req, res) => {
   lgtv.on("error", () => res.status(500).send("Error al conectar con el televisor"));
 };
 
+const sendRemoteButton = (buttonName, res, successMessage) => {
+  const lgtv = require("../utils/lgtv")();
+
+  const respondAndDisconnect = (status, message) => {
+    res.status(status).send(message);
+    lgtv.disconnect();
+  };
+
+  lgtv.on("connect", () => {
+    lgtv.getSocket(
+      "ssap://com.webos.service.networkinput/getPointerInputSocket",
+      (socketErr, socket) => {
+        if (socketErr || !socket) {
+          return respondAndDisconnect(500, "No se pudo abrir el control remoto");
+        }
+
+        const payload = JSON.stringify({ type: "button", name: buttonName });
+        socket.send(payload);
+        respondAndDisconnect(200, successMessage);
+      }
+    );
+  });
+
+  lgtv.on("error", () => res.status(500).send("Error al conectar con el televisor"));
+};
+
+exports.remotePlayPause = (req, res) => {
+  sendRemoteButton("PLAY_PAUSE", res, "✅ Comando remoto play/pause enviado");
+};
+
+exports.remotePlay = (req, res) => {
+  sendRemoteButton("PLAY", res, "✅ Comando remoto play enviado");
+};
+
+exports.remotePause = (req, res) => {
+  sendRemoteButton("PAUSE", res, "✅ Comando remoto pause enviado");
+};
+
 
 exports.playOrStart = (req, res) => {
   const lgtv = require("../utils/lgtv")();
