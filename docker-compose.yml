@@ -2,9 +2,12 @@ services:
   app:
     build: .
     container_name: backendwaketv-app
+    network_mode: host
     environment:
       - NODE_ENV=production
-      - PORT=5000
-    ports:
-      - "8081:5000"
+      - PORT=8081
+      - TV_IP=192.168.18.19
+      - TV_MAC_ADDRESS=14:c9:13:7b:b7:14
+      - WOL_BROADCAST_ADDRESS=192.168.18.255
+      - WOL_PORT=9
     restart: unless-stopped

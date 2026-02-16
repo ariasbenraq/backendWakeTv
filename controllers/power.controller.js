@@ -1,15 +1,101 @@
 const wol = require("wol");
-const { MAC_ADDRESS } = require("../config/tv.config");
+const createLgtv = require("../utils/lgtv");
+const {
+  MAC_ADDRESS,
+  WOL_BROADCAST_ADDRESS,
+  WOL_PORT,
+} = require("../config/tv.config");
 
-exports.powerOn = (req, res) => {
-  wol.wake(MAC_ADDRESS, (err) => {
-    if (err) return res.status(500).send("Error al encender el televisor");
-    res.send("Encendiendo el televisor...");
+const DISNEY_APP_ID = "com.disney.disneyplus-prod";
+
+const wakeTv = () =>
+  new Promise((resolve, reject) => {
+    wol.wake(
+      MAC_ADDRESS,
+      {
+        address: WOL_BROADCAST_ADDRESS,
+        port: WOL_PORT,
+      },
+      (err) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+
+        resolve();
+      }
+    );
+  });
+
+const connectTv = () =>
+  new Promise((resolve, reject) => {
+    const lgtv = createLgtv();
+
+    const clear = () => {
+      lgtv.removeAllListeners("connect");
+      lgtv.removeAllListeners("error");
+    };
+
+    lgtv.once("connect", () => {
+      clear();
+      resolve(lgtv);
+    });
+
+    lgtv.once("error", (err) => {
+      clear();
+      try {
+        lgtv.disconnect();
+      } catch (_) {
+        // noop
+      }
+      reject(err);
+    });
+  });
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const connectWithRetry = async ({ attempts, delayMs }) => {
+  let lastError;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await connectTv();
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts) {
+        await sleep(delayMs);
+      }
+    }
+  }
+
+  throw lastError || new Error("No se pudo conectar con el TV");
+};
+
+const launchDisney = (lgtv, res) => {
+  lgtv.request("ssap://system.launcher/launch", { id: DISNEY_APP_ID }, (err) => {
+    if (err) {
+      console.error("❌ No se pudo abrir Disney+:", err);
+      res.status(500).send("El TV respondió, pero no se pudo abrir Disney+");
+    } else {
+      res.send("✅ Disney+ abierto correctamente");
+    }
+
+    lgtv.disconnect();
   });
 };
 
+exports.powerOn = async (req, res) => {
+  try {
+    await wakeTv();
+    res.send("Encendiendo el televisor...");
+  } catch (err) {
+    console.error("❌ Error al enviar Wake-on-LAN:", err);
+    res.status(500).send("Error al encender el televisor");
+  }
+};
+
 exports.powerOff = (req, res) => {
-  const lgtv = require("../utils/lgtv")();
+  const lgtv = createLgtv();
   lgtv.on("connect", () => {
     lgtv.request("ssap://system/turnOff", (err) => {
       if (err) return res.status(500).send("Error al apagar el televisor");
@@ -20,118 +106,49 @@ exports.powerOff = (req, res) => {
   lgtv.on("error", () => res.status(500).send("Error al conectar con el televisor"));
 };
 
-exports.powerOnAndOpenDisney = (req, res) => {
-  const wol = require("wol");
-  const { MAC_ADDRESS } = require("../config/tv.config");
-
-  wol.wake(MAC_ADDRESS, async (err) => {
-    if (err) {
-      console.error("❌ Error al enviar Wake-on-LAN:", err);
-      return res.status(500).send("Error al encender el televisor");
-    }
-
-    console.log("⚡ Wake-on-LAN enviado. Esperando que inicie webOS...");
-
-    // Esperar 15 segundos para que el televisor termine de iniciar
-    setTimeout(() => {
-      const lgtv = require("../utils/lgtv")();
-
-      lgtv.on("connect", () => {
-        console.log("📺 Conectado. Abriendo Disney+...");
-
-        lgtv.request("ssap://system.launcher/launch", { id: "com.disney.disneyplus-prod" }, (err2) => {
-          if (err2) {
-            console.error("❌ No se pudo abrir Disney+:", err2);
-            res.status(500).send("El TV se encendió, pero no se pudo abrir Disney+");
-          } else {
-            console.log("✅ Disney+ abierto automáticamente después de encender");
-            res.send("TV encendido y Disney+ abierto correctamente");
-          }
-          lgtv.disconnect();
-        });
-      });
-
-      lgtv.on("error", (err3) => {
-        console.error("❌ Error al conectar con el televisor:", err3);
-        res.status(500).send("El TV se encendió, pero no se pudo conectar vía WebSocket");
-      });
-    }, 15000); // 15 segundos
-  });
-};
-
-exports.smartOpenDisney = async (req, res) => {
-  const wol = require("wol");
-  const { MAC_ADDRESS } = require("../config/tv.config");
-
-  // Función para intentar conectar al TV
-  const tryConnect = () => {
-    return new Promise((resolve, reject) => {
-      const lgtv = require("lgtv2")({
-        url: "ws://192.168.18.19:3000",
-        reconnect: false,
-      });
-
-      lgtv.on("connect", () => resolve(lgtv));
-      lgtv.on("error", () => reject(new Error("No se pudo conectar")));
-    });
-  };
-
-  // Función que lanza Disney+
-  const sendDisneyLaunch = (socket) => {
-    socket.request("ssap://system.launcher/launch", { id: "com.disney.disneyplus-prod" }, (err) => {
-      if (err) {
-        console.error("❌ Error al abrir Disney+:", err);
-        res.status(500).send("No se pudo abrir Disney+");
-      } else {
-        res.send("✅ Disney+ abierto correctamente");
-      }
-      socket.disconnect();
-    });
-  };
-
-  // Función que hace timeout manual
-  const timeout = (ms) =>
-    new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("timeout")), ms)
-    );
-
-  // Verificar si el TV ya está encendido (máx 3s)
+exports.powerOnAndOpenDisney = async (req, res) => {
   try {
-    console.log("⚡ Verificando si el TV está encendido (espera 3s máx)...");
-    const lgtv = await Promise.race([tryConnect(), timeout(3000)]);
-    console.log("✅ El TV está encendido. Abriendo Disney+...");
-    sendDisneyLaunch(lgtv);
-  } catch (error) {
-    console.log("🔌 El TV parece estar apagado. Enviando Wake-on-LAN...");
+    console.log("⚡ Enviando Wake-on-LAN...");
+    await wakeTv();
 
-    wol.wake(MAC_ADDRESS, (err2) => {
-      if (err2) {
-        console.error("❌ Error al enviar Wake-on-LAN:", err2);
-        return res.status(500).send("No se pudo encender el televisor");
-      }
+    console.log("⚡ Esperando que webOS termine de iniciar...");
+    const lgtv = await connectWithRetry({ attempts: 10, delayMs: 3000 });
 
-      console.log("⚡ Encendido solicitado. Esperando 10 segundos...");
-
-      setTimeout(() => {
-        const lgtv2 = require("lgtv2")({
-          url: "ws://192.168.18.19:3000",
-          reconnect: false,
-        });
-
-        lgtv2.on("connect", () => {
-          console.log("📺 Conectado después de encender. Abriendo Disney+...");
-          sendDisneyLaunch(lgtv2);
-        });
-
-        lgtv2.on("error", (err3) => {
-          console.error("❌ No se pudo conectar tras el encendido:", err3);
-          res.status(500).send("TV encendido, pero no se pudo conectar para abrir Disney+");
-        });
-      }, 5000); // esperar a que webOS termine de cargar
-    });
+    console.log("📺 Conectado después de encender. Abriendo Disney+...");
+    launchDisney(lgtv, res);
+  } catch (err) {
+    console.error("❌ No se pudo conectar tras el encendido:", err);
+    res.status(500).send("TV encendido, pero no se pudo conectar para abrir Disney+");
   }
 };
 
+exports.smartOpenDisney = async (req, res) => {
+  try {
+    console.log("⚡ Verificando si el TV está encendido (espera 3s máx)...");
+    const lgtv = await Promise.race([
+      connectWithRetry({ attempts: 1, delayMs: 0 }),
+      sleep(3000).then(() => {
+        throw new Error("timeout");
+      }),
+    ]);
 
+    console.log("✅ El TV está encendido. Abriendo Disney+...");
+    launchDisney(lgtv, res);
+    return;
+  } catch (_) {
+    console.log("🔌 El TV parece estar apagado. Enviando Wake-on-LAN...");
+  }
 
+  try {
+    await wakeTv();
+    console.log("⚡ Encendido solicitado. Esperando disponibilidad de webOS...");
 
+    const lgtv = await connectWithRetry({ attempts: 10, delayMs: 3000 });
+
+    console.log("📺 Conectado después de encender. Abriendo Disney+...");
+    launchDisney(lgtv, res);
+  } catch (err) {
+    console.error("❌ No se pudo conectar tras el encendido:", err);
+    res.status(500).send("TV encendido, pero no se pudo conectar para abrir Disney+");
+  }
+};
